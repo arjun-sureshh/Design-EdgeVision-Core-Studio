@@ -5,10 +5,12 @@ import { Card } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { ProcessingStatsAnimation } from './processing-stats-animation';
+import { checkResponseStatus } from '../api/uploadApi';  // Import for polling
 
 interface VideoProcessingScreenProps {
-  fileName: string;
-  onProcessingComplete: () => void;
+  fileName: string; 
+  projectName: string;  // New: For polling API
+  onProcessingComplete: (result: any) => void;  // Updated: Accepts result
   onBack: () => void;
 }
 
@@ -28,11 +30,12 @@ interface DetectedEvent {
   confidence: number;
 }
 
-export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }: VideoProcessingScreenProps) {
+export function VideoProcessingScreen({ fileName, projectName, onProcessingComplete, onBack }: VideoProcessingScreenProps) {
   const [overallProgress, setOverallProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [detectedEvents, setDetectedEvents] = useState<DetectedEvent[]>([]);
   const [processingTime, setProcessingTime] = useState(0);
+  const [isPolling, setIsPolling] = useState(true);  // New: Track polling state
 
   const [steps, setSteps] = useState<ProcessingStep[]>([
     {
@@ -69,7 +72,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
     }
   ]);
 
-  // Mock events that get "detected" during processing
+  // Mock events (unchanged)
   const mockEvents = [
     { timestamp: '00:00:15', type: 'Person Entry', description: 'Individual enters frame from left entrance', confidence: 0.92 },
     { timestamp: '00:01:23', type: 'Motion Detected', description: 'Significant movement in central area', confidence: 0.87 },
@@ -78,6 +81,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
     { timestamp: '00:05:30', type: 'Person Exit', description: 'Individual exits through main doorway', confidence: 0.91 }
   ];
 
+  // Timer for processing time (unchanged)
   useEffect(() => {
     const timer = setInterval(() => {
       setProcessingTime(prev => prev + 1);
@@ -86,6 +90,52 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
     return () => clearInterval(timer);
   }, []);
 
+  // New: Polling useEffect - starts on mount, polls until success
+  useEffect(() => {
+    const pollForResult = async () => {
+      const POLL_DELAY_MS = 5000;  // 5 seconds
+      const MAX_POLL_ATTEMPTS = 12;  // 60s total
+      let pollAttempts = 0;
+
+      while (pollAttempts < MAX_POLL_ATTEMPTS && isPolling) {
+        pollAttempts++;
+        console.log(`Polling for result (attempt ${pollAttempts}/${MAX_POLL_ATTEMPTS})...`);
+
+        try {
+          const responseResult = await checkResponseStatus(projectName, fileName);
+          
+          // Check for success
+          if (responseResult.status === 'true' && responseResult.message === 'success') {
+            console.log('Polling success:', responseResult);
+            setIsPolling(false);
+            onProcessingComplete(responseResult);  // Pass full result (output_path, etc.)
+            return;  // Stop polling
+          } else if (responseResult.status === 'false' && responseResult.message === 'inprogress') {
+            console.log('Still in progress...');
+            // Continue mock progress
+            advanceMockProgress();
+          } else {
+            console.log('Unexpected response:', responseResult);
+          }
+        } catch (pollError) {
+          console.log('Poll error (continuing):', pollError);
+          advanceMockProgress();  // Keep animation going
+        }
+
+        // Delay
+        await new Promise(resolve => setTimeout(resolve, POLL_DELAY_MS));
+      }
+
+      // Timeout
+      console.log('Polling timeout');
+      setIsPolling(false);
+      onProcessingComplete({ status: 'timeout', message: 'Process timed out' });  // Fallback
+    };
+
+    pollForResult();
+  }, [projectName, fileName, onProcessingComplete, isPolling]);
+
+  // Updated: Mock progress animation while polling
   useEffect(() => {
     const processVideo = async () => {
       // Step 1: Preprocessing
@@ -93,16 +143,13 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
       await new Promise(resolve => setTimeout(resolve, 2000));
       await simulateStep(0, 'completed');
 
-      // Step 2: AI Analysis
+      // Step 2: AI Analysis (add events)
       await simulateStep(1, 'in-progress');
-      
-      // Add detected events during AI analysis
       for (let i = 0; i < mockEvents.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 800));
         setDetectedEvents(prev => [...prev, mockEvents[i]]);
         updateStepProgress(1, ((i + 1) / mockEvents.length) * 100);
       }
-      
       await simulateStep(1, 'completed');
 
       // Step 3: Event Detection
@@ -115,14 +162,19 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
       await new Promise(resolve => setTimeout(resolve, 1200));
       await simulateStep(3, 'completed');
 
-      // Complete processing
+      // Complete mock (polling handles real complete)
       setOverallProgress(100);
       await new Promise(resolve => setTimeout(resolve, 1000));
-      onProcessingComplete();
     };
 
-    processVideo();
-  }, [onProcessingComplete]);
+    if (isPolling) processVideo();  // Run mock only while polling
+  }, [isPolling]);
+
+  // Helper to advance mock progress during polling
+  const advanceMockProgress = () => {
+    const baseProgress = (currentStep / steps.length) * 100;
+    setOverallProgress(Math.min(95, baseProgress + Math.random() * 10));  // Random increment
+  };
 
   const simulateStep = async (stepIndex: number, status: ProcessingStep['status']) => {
     setCurrentStep(stepIndex);
@@ -131,15 +183,9 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
     ));
 
     if (status === 'in-progress') {
-      // Simulate progress for the current step
       for (let progress = 0; progress <= 100; progress += 5) {
         await new Promise(resolve => setTimeout(resolve, 50));
         updateStepProgress(stepIndex, progress);
-        
-        // Update overall progress
-        const baseProgress = (stepIndex / steps.length) * 100;
-        const stepProgress = (progress / 100) * (100 / steps.length);
-        setOverallProgress(Math.min(95, baseProgress + stepProgress));
       }
     }
   };
@@ -169,7 +215,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
+      {/* Header (unchanged) */}
       <div className="border-b border-border px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -194,7 +240,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
 
       <div className="flex-1 p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          {/* Overall Progress */}
+          {/* Overall Progress (unchanged) */}
           <Card className="p-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -207,7 +253,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
             </div>
           </Card>
 
-          {/* Apple-style Processing Animation */}
+          {/* Apple-style Processing Animation (unchanged) */}
           <Card className="p-8">
             <div className="space-y-6">
               <div className="text-center">
@@ -221,7 +267,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
           </Card>
 
           <div className="grid grid-cols-1 gap-6">
-            {/* Real-time Event Detection */}
+            {/* Real-time Event Detection (unchanged) */}
             <Card className="p-6">
               <h3 className="font-medium text-foreground mb-4">
                 Events Detected ({detectedEvents.length})
@@ -265,7 +311,7 @@ export function VideoProcessingScreen({ fileName, onProcessingComplete, onBack }
             </Card>
           </div>
 
-          {/* Video Preview */}
+          {/* Video Preview (unchanged) */}
           <Card className="p-6">
             <h3 className="font-medium text-foreground mb-4">Video Preview</h3>
             <div className="aspect-video bg-black rounded-lg flex items-center justify-center">

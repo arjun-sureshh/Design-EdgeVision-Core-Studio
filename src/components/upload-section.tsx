@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { Upload, FileVideo, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
-import { updateEnvWithFile } from '../api/uploadApi';  // Import from API module
 
 interface HowItWorksStep {
   title: string;
   description: string;
 }
+
 
 interface UploadSectionProps {
   title: string;
@@ -15,13 +15,13 @@ interface UploadSectionProps {
   howItWorks: HowItWorksStep[];
   onUploadComplete: (file: File) => void;
   onBack: () => void;
+  uploadFileToBackend:(file: File,projectName:string) =>void
 }
 
-export function UploadSection({ title, description, howItWorks, onUploadComplete, onBack }: UploadSectionProps) {
+export function UploadSection({ title, description, howItWorks, onUploadComplete, onBack,uploadFileToBackend }: UploadSectionProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-const [isUploading, setIsUploading] = useState(false);
 // Duplicate declaration removed
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -66,40 +66,6 @@ const [isUploading, setIsUploading] = useState(false);
     fileInputRef.current?.click();
   };
 
- // New: Function to upload file to backend API
-// Updated: Sends JSON with project_name + file_name to backend (no file upload)
-// Updated: Dynamically sets project_name based on title prop (e.g., 'vlm' for "Video Summarization", 'reid' for "People Tracking")
-const uploadFileToBackend = async (file: File) => {
-  try {
-    setIsUploading(true);
-    // console.log('Sending JSON to:', 'http://localhost:8000/update-env'); // Debug log (matches API_BASE)
-    
-    // Dynamically determine project_name from title
-    let projectName = 'reid';  // Default fallback
-    if (title === "Video Summarization") {
-      projectName = 'vlm';
-    } else if (title === "People Tracking") {
-      projectName = 'reid';
-    }
-    console.log(`Determined project_name: '${projectName}' from title: '${title}'`);
-    
-    // Call the new API: Passes dynamic project_name and file_name (filename only)
-    const result = await updateEnvWithFile(projectName, file.name);  
-    
-    console.log('Response status:', 200); // Success (from API)
-    console.log('Update success:', result);
-    onUploadComplete(file);  // Proceed after .env update
-  } catch (error) {
-    console.error('Full update error:', error); // More details
-    if (error instanceof Error) {
-      alert(`Failed: ${error.message}`); // Show server error if any
-    } else {
-      alert('Failed: An unknown error occurred.');
-    }
-  } finally {
-    setIsUploading(false);
-  }
-};
   // ....................
 
   // Animation timing effect
@@ -115,7 +81,15 @@ const uploadFileToBackend = async (file: File) => {
 
   const handleStartAnalysis = () => {
     if (uploadedFile) {
-      uploadFileToBackend(uploadedFile)
+      // Dynamically determine project_name from title
+    // let projectName = 'reid';  // Default fallback
+    // if (title === "Video Summarization") {
+    //   projectName = 'vlm';
+    // } else if (title === "People Tracking") {
+    //   projectName = 'reid';
+    // }
+    // console.log(`Determined project_name: '${projectName}' from title: '${title}'`);
+    //   uploadFileToBackend(uploadedFile,projectName)
       onUploadComplete(uploadedFile);
     }
   };

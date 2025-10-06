@@ -12,9 +12,10 @@ import { Checkbox } from './ui/checkbox';
 interface AdvancedTrackSearchScreenProps {
   fileName: string;
   onBack: () => void;
+  result:any;
 }
 
-export function AdvancedTrackSearchScreen({ fileName, onBack }: AdvancedTrackSearchScreenProps) {
+export function AdvancedTrackSearchScreen({ fileName, result,onBack }: AdvancedTrackSearchScreenProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');

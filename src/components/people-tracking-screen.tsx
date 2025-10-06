@@ -10,9 +10,10 @@ interface PeopleTrackingScreenProps {
   fileName: string;
   onBack: () => void;
   onBackToMenu?: () => void;
+  result:any;
 }
 
-export function PeopleTrackingScreen({ fileName, onBack, onBackToMenu }: PeopleTrackingScreenProps) {
+export function PeopleTrackingScreen({ fileName,result, onBack, onBackToMenu }: PeopleTrackingScreenProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<number | null>(1);

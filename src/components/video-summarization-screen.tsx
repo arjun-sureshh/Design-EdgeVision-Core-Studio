@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Play, Pause, SkipForward, SkipBack, Settings, Clock, ArrowLeft, User, Activity, Users, Package, UserMinus, BarChart3 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -10,16 +10,22 @@ import { QuickActionsCard } from './quick-actions-card';
 
 interface VideoSummarizationScreenProps {
   fileName: string;
+  result:any;
   onBack: () => void;
   onBackToMenu?: () => void;
 }
 
-export function VideoSummarizationScreen({ fileName, onBack, onBackToMenu }: VideoSummarizationScreenProps) {
+export function VideoSummarizationScreen({ fileName,result, onBack, onBackToMenu }: VideoSummarizationScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [detailLevel, setDetailLevel] = useState('basic');
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-
+const [summaryContent, setSummaryContent] = useState('');  // New: State for loaded summary text
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);  // New: Loading state for fetch
+  
+  // Demo summary (fallback)
+  const demoSummary = "This surveillance footage analysis detected 5 significant events spanning from 00:00:15 to 00:05:30. The video shows 3 person-related activities, 1 interaction between individuals, 1 significant motion event. The AI identified activities with an average confidence level of 91%, including individuals entering and exiting the monitored area, movement patterns in central zones, and interactions near key locations such as reception areas and counters.";
+  
   // Mock data for events
   const events = [
     {
@@ -79,6 +85,28 @@ export function VideoSummarizationScreen({ fileName, onBack, onBackToMenu }: Vid
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  // New: Load summary content from result.output_path (for VLM)
+  useEffect(() => {
+    if (result && result.output_path && result.output_path.endsWith('.txt')) {  // Assume summary is .txt
+      setIsLoadingSummary(true);
+      fetch(result.output_path)  // Assume backend serves at this path (e.g., /files/summary.txt)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to load summary');
+          return res.text();
+        })
+        .then(text => {
+          setSummaryContent(text);
+        })
+        .catch(error => {
+          console.error('Error loading summary:', error);
+          setSummaryContent(demoSummary);  // Fallback to demo
+        })
+        .finally(() => setIsLoadingSummary(false));
+    } else {
+      setSummaryContent(demoSummary);  // No result or not summary path
+    }
+  }, [result]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -120,7 +148,7 @@ export function VideoSummarizationScreen({ fileName, onBack, onBackToMenu }: Vid
               <div className="aspect-video bg-black rounded-lg mb-2 flex items-center justify-center">
                 <div className="text-white/70 text-center">
                   <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Play className="w-8 h-8" />
+                    <Play className="w-8 h-8"  />
                   </div>
                   <p>Video Player</p>
                   <p className="text-sm opacity-70">{fileName}</p>
@@ -170,9 +198,13 @@ export function VideoSummarizationScreen({ fileName, onBack, onBackToMenu }: Vid
               
               {/* Analysis Description */}
               <div className="mb-8 p-4 bg-muted/30 rounded-lg border border-border/50">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  This surveillance footage analysis detected 5 significant events spanning from 00:00:15 to 00:05:30. The video shows 3 person-related activities, 1 interaction between individuals, 1 significant motion event. The AI identified activities with an average confidence level of 91%, including individuals entering and exiting the monitored area, movement patterns in central zones, and interactions near key locations such as reception areas and counters.
-                </p>
+               {isLoadingSummary ? (
+                  <p className="text-sm text-muted-foreground">Loading summary...</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {summaryContent || demoSummary}  // Displays loaded summary or demo
+                  </p>
+                )}
               </div>
 
               <h4 className="font-medium text-foreground mb-6 flex items-center gap-2">
